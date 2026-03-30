@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, Circle, Clock, GripVertical } from 'lucide-react'
+import { CheckCircle2, Circle, Clock, GripVertical, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -11,21 +11,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
-
-interface Task {
-  id: number
-  title: string
-  status: 'todo' | 'in-progress' | 'done'
-  dueDate: string
-}
+import { TaskModel } from '@/lib/generated/prisma/models'
+import { updateQuickTask, deleteTask } from '@/app/actions/tasks'
+import { UpdateTaskDialog } from '@/components/update-task-dialog'
 
 interface TasksListProps {
-  tasks: Task[]
+  tasks: TaskModel[]
   onStatusChange: (
-    id: number,
+    id: string,
     newStatus: 'todo' | 'in-progress' | 'done'
   ) => void
-  onReorderTasks: (newTasks: Task[]) => void
+  onReorderTasks: (newTasks: TaskModel[]) => void
 }
 
 const statusConfig = {
@@ -48,16 +44,18 @@ const statusConfig = {
 }
 
 interface TaskCardProps {
-  task: Task
-  expandedTaskId: number | null
-  setExpandedTaskId: (id: number | null) => void
+  task: TaskModel
+  expandedTaskId: string | null
+  setExpandedTaskId: (id: string | null) => void
   onStatusChange: (
-    id: number,
+    id: string,
     newStatus: 'todo' | 'in-progress' | 'done'
   ) => void
   isDragging: boolean
-  onDragStart: (e: React.DragEvent<HTMLDivElement>, task: Task) => void
+  onDragStart: (e: React.DragEvent<HTMLDivElement>, task: TaskModel) => void
   onDragEnd?: () => void
+  onEditTask: (task: TaskModel) => void
+  onDeleteTask: (id: string) => void
 }
 
 function TaskCard({
@@ -68,8 +66,10 @@ function TaskCard({
   isDragging,
   onDragStart,
   onDragEnd,
+  onEditTask,
+  onDeleteTask,
 }: TaskCardProps) {
-  const config = statusConfig[task.status]
+  const config = statusConfig[task.status.toLocaleLowerCase() as keyof typeof statusConfig]
   const IconComponent = config.icon
 
   return (
@@ -80,9 +80,7 @@ function TaskCard({
       className={`border-border dark:border-sidebar-border/30 dark:bg-card/50 group cursor-grab overflow-hidden border bg-white transition-all hover:shadow-md active:cursor-grabbing dark:hover:shadow-lg ${
         isDragging ? 'opacity-50 shadow-lg dark:shadow-2xl' : ''
       }`}
-      onClick={() =>
-        setExpandedTaskId(expandedTaskId === task.id ? null : task.id)
-      }
+      onClick={() => onEditTask(task)}
     >
       <div className="space-y-3 p-4">
         <div className="flex items-start gap-4">
@@ -131,11 +129,20 @@ function TaskCard({
           <Badge className={`${config.color} text-xs font-medium`}>
             {config.label}
           </Badge>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-500/10 transition-all"
+            onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id) }}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
 
         <div className="text-muted-foreground dark:text-muted-foreground flex items-center gap-2 pl-9 text-xs">
           <Clock className="h-3 w-3" />
-          <span>{task.dueDate}</span>
+          <span>{new Date(task.date).toLocaleDateString()}</span>
         </div>
       </div>
     </Card>
@@ -147,8 +154,10 @@ export function TasksList({
   onStatusChange,
   onReorderTasks,
 }: TasksListProps) {
-  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null)
-  const [draggedTask, setDraggedTask] = useState<Task | null>(null)
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
+  const [selectedTask, setSelectedTask] = useState<TaskModel | null>(null)
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
+  const [draggedTask, setDraggedTask] = useState<TaskModel | null>(null)
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null)
   const [draggedTaskHeight, setDraggedTaskHeight] = useState<number>(0)
 
@@ -158,7 +167,7 @@ export function TasksList({
     done: tasks.filter((t) => t.status === 'done'),
   }
 
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, task: Task) => {
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, task: TaskModel) => {
     setDraggedTask(task)
     // Get the Card element height for placeholder
     const card = (e.target as HTMLDivElement).closest(
@@ -200,7 +209,14 @@ export function TasksList({
 
     if (draggedTask.status !== status) {
       onStatusChange(draggedTask.id, status)
+      const updated = tasks.map((t) =>
+        t.id === draggedTask.id ? { ...t, status } : t
+      )
+      onReorderTasks(updated)
     }
+
+    draggedTask.status = status
+    updateQuickTask(draggedTask.id, draggedTask)
 
     setDraggedTask(null)
   }
@@ -249,6 +265,11 @@ export function TasksList({
                   isDragging={draggedTask?.id === task.id}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
+                  onEditTask={(t) => { setSelectedTask(t); setUpdateDialogOpen(true) }}
+                  onDeleteTask={async (id) => {
+                    await deleteTask(id)
+                    onReorderTasks(tasks.filter((t) => t.id !== id))
+                  }}
                 />
               ))}
               {dragOverStatus === status &&
@@ -267,10 +288,21 @@ export function TasksList({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-      {renderTaskSection('todo', 'To Do')}
-      {renderTaskSection('in-progress', 'In Progress')}
-      {renderTaskSection('done', 'Done')}
-    </div>
+    <>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        {renderTaskSection('todo', 'To Do')}
+        {renderTaskSection('in-progress', 'In Progress')}
+        {renderTaskSection('done', 'Done')}
+      </div>
+      <UpdateTaskDialog
+        open={updateDialogOpen}
+        onOpenChange={setUpdateDialogOpen}
+        task={selectedTask}
+        onUpdated={(updated) => {
+          onReorderTasks(tasks.map((t) => (t.id === updated.id ? updated : t)))
+          setUpdateDialogOpen(false)
+        }}
+      />
+    </>
   )
 }

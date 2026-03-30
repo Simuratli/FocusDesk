@@ -1,6 +1,7 @@
 'use client'
 
-import { Zap, CheckSquare, BarChart3, Settings, LogOut } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { Zap, CheckSquare, BarChart3, Settings, LogOut, History } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -24,19 +25,23 @@ interface User {
 const menuItems = [
   {
     title: 'Dashboard',
-    url: '#',
+    url: '/dashboard',
     icon: BarChart3,
-    isActive: true,
   },
   {
     title: 'Tasks',
-    url: '#',
+    url: '/tasks',
     icon: CheckSquare,
   },
   {
     title: 'Analytics',
-    url: '#',
+    url: '/analytics',
     icon: BarChart3,
+  },
+  {
+    title: 'History',
+    url: '/history',
+    icon: History,
   },
 ]
 
@@ -52,6 +57,7 @@ export function AppSidebar({ user }: { user?: User }) {
   const { state } = useSidebar()
   const isExpanded = state === 'expanded'
   const { isLoggingOut, handleLogout } = useAuth()
+  const pathname = usePathname()
 
   const userEmail = user?.email || 'Guest'
   const userName = user?.user_metadata?.full_name || userEmail
@@ -88,12 +94,14 @@ export function AppSidebar({ user }: { user?: User }) {
 
       <SidebarContent className="px-2">
         <SidebarMenu>
-          {menuItems.map((item) => (
+          {menuItems.map((item) => {
+            const isActive = pathname === item.url
+            return (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
                 asChild
-                isActive={item.isActive}
-                className={`${item.isActive ? 'bg-sidebar-primary/10 text-sidebar-primary' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`}
+                isActive={isActive}
+                className={`${isActive ? 'bg-sidebar-primary/10 text-sidebar-primary' : 'text-sidebar-foreground hover:bg-sidebar-accent'}`}
               >
                 <a href={item.url} className="flex items-center gap-3">
                   <item.icon className="h-5 w-5" />
@@ -101,7 +109,8 @@ export function AppSidebar({ user }: { user?: User }) {
                 </a>
               </SidebarMenuButton>
             </SidebarMenuItem>
-          ))}
+            )
+          })}
         </SidebarMenu>
 
         <div className="border-sidebar-border/50 my-4 border-t" />

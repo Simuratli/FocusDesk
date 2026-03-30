@@ -20,30 +20,34 @@ FocusDesk is your personal productivity hub powered by artificial intelligence. 
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - npm or pnpm
 - Supabase account
 
 ### Installation
 
 1. Clone the repository
+
 ```bash
 git clone <repository-url>
 cd fcus
 ```
 
 2. Install dependencies
+
 ```bash
 pnpm install
 ```
 
 3. Create `.env.local` file
+
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 4. Run the development server
+
 ```bash
 pnpm dev
 ```

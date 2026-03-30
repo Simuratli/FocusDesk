@@ -2,72 +2,43 @@
 
 import { MetricsCard } from '@/components/metrics-card'
 import { TasksList } from '@/components/tasks-list'
-import { useState } from 'react'
-
-interface Task {
-  id: number
-  title: string
-  status: 'todo' | 'in-progress' | 'done'
-  dueDate: string
-}
+import { QuickAddTaskDialog } from '@/components/quick-add-task-dialog'
+import { useStore } from '@/store'
+import { updateQuickTask } from '@/app/actions/tasks'
+import { updateStreak } from '@/app/actions/streak'
 
 export function DashboardContent() {
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: 1,
-      title: 'Complete project proposal',
-      status: 'done',
-      dueDate: 'Today',
-    },
-    {
-      id: 2,
-      title: 'Review team feedback',
-      status: 'in-progress',
-      dueDate: 'Today',
-    },
-    {
-      id: 3,
-      title: 'Update documentation',
-      status: 'in-progress',
-      dueDate: 'Today',
-    },
-    {
-      id: 4,
-      title: 'Schedule meeting with stakeholders',
-      status: 'todo',
-      dueDate: 'Today',
-    },
-    {
-      id: 5,
-      title: 'Prepare presentation slides',
-      status: 'todo',
-      dueDate: 'Today',
-    },
-    {
-      id: 6,
-      title: 'Fix critical bug in production',
-      status: 'todo',
-      dueDate: 'Today',
-    },
-  ])
+  const tasks = useStore(state => state.tasks)
+  const updateTask = useStore(state => state.updateTask)
+  const reorderTasks = useStore(state => state.reorderTasks)
+  const currentStreak = useStore(state => state.currentStreak)
+  const longestStreak = useStore(state => state.longestStreak)
+  const setStreak = useStore(state => state.setStreak)
 
   const completedCount = tasks.filter((t) => t.status === 'done').length
-  const completionPercentage = Math.round((completedCount / tasks.length) * 100)
-  const streak = 12
+  const completionPercentage = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0
 
-  const handleStatusChange = (
-    id: number,
+  const handleStatusChange = async (
+    id: string,
     newStatus: 'todo' | 'in-progress' | 'done'
   ) => {
-    setTasks(
-      tasks.map((task) =>
-        task.id === id ? { ...task, status: newStatus } : task
-      )
-    )
+    const task = tasks.find((t) => t.id === id)
+    if (!task) return
+    const updated = { ...task, status: newStatus }
+    updateTask(updated)
+    await updateQuickTask(id, updated)
+    if (newStatus === 'done') {
+      const streak = await updateStreak()
+      if (streak) setStreak(streak.currentStreak, streak.longestStreak)
+    }
   }
 
-  const handleReorderTasks = (newTasks: Task[]) => {
-    setTasks(newTasks)
+  const handleReorderTasks = (newTasks: typeof tasks) => {
+    reorderTasks(newTasks)
+  }
+
+  const handleQuickAddTask = (_title: string, _priority: 'high' | 'normal' | 'low') => {
+    // Task is added via server action in QuickAddTaskDialog
   }
 
   return (
@@ -83,23 +54,26 @@ export function DashboardContent() {
         <MetricsCard
           title="Tasks Completed"
           value={completedCount}
-          subtitle={`of ${tasks.length}`}
+          subtitle={`${completedCount} of ${tasks.length}`}
           icon="✅"
           color="bg-accent/10 dark:bg-accent/20"
         />
         <MetricsCard
           title="Current Streak"
-          value={`${streak} days`}
-          subtitle="+2 days"
+          value={`${currentStreak} days`}
+          subtitle={`Longest: ${longestStreak} days`}
           icon="🔥"
           color="bg-orange-500/10 dark:bg-orange-500/20"
         />
       </div>
 
       <div>
-        <h2 className="text-foreground mb-4 text-xl font-semibold dark:text-white">
-          Tasks
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-foreground text-xl font-semibold dark:text-white">
+            Tasks
+          </h2>
+          <QuickAddTaskDialog onAddTask={handleQuickAddTask} />
+        </div>
         <TasksList
           tasks={tasks}
           onStatusChange={handleStatusChange}
