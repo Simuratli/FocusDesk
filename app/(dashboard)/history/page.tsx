@@ -52,7 +52,7 @@ export default function HistoryPage() {
           </div>
           <h1 className="text-2xl font-bold text-foreground">Geçmiş</h1>
         </div>
-        <p className="text-muted-foreground text-sm ml-[52px]">
+        <p className="text-muted-foreground text-sm ml-13">
           Tamamlanan görevlerin kaydı
         </p>
       </div>
