@@ -23,9 +23,6 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>
 
-import { useEffect } from 'react'
-import { createClient } from '@/utils/supabase/client'
-
 export default function LoginPage() {
   const { handleGoogleLogin, handleLoginWithEmail, error } = useAuth()
   const {
@@ -39,19 +36,6 @@ export default function LoginPage() {
   const onSubmit = handleSubmit(async (data) => {
     await handleLoginWithEmail(data)
   })
-
-  // Eğer session varsa dashboard'a yönlendir
-  const router = useRouter()
-  useEffect(() => {
-    const checkSession = async () => {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        router.replace('/dashboard')
-      }
-    }
-    checkSession()
-  }, [router])
 
   return (
     <div className="animated-gradient flex min-h-screen items-center justify-center">
